@@ -187,7 +187,7 @@ mental_rmse <- c("Linear Regression" = modelr::rmse(mental_linear, mental_test),
 kable(mental_rmse, col.names = c("RMSE"), caption = "RMSE for all the Models", format_caption = c("italic", "underline")) %>%
     kable_styling(bootstrap_options = "striped", full_width = F)
 ```
-These models are generally all good at predicting the mental health outcomes. And we can see that Gradient Boosting has the smallest RMSE. So we choose Gradient Boosting model to have a further look at our case.
+These models are generally all good at predicting the mental health outcomes. While we cannot explain the meaning of the interaction term of stepwise, so we don't consider this model in the further study. And we can see that Gradient Boosting has the smallest RMSE. So we choose Gradient Boosting model to have a further look at our case.We cannot explain the meaning of the cross-product term of stepwise
 
 In Gradient Boosting models, relative influence is a measure of variable importance that reflects the contribution of each input variable to the model's overall predictive performance (Appendix. Table 1)
 
