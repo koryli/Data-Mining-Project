@@ -1,0 +1,199 @@
+
+```{r include=FALSE}
+library(dplyr)
+library(tidyr)
+library(rsample)
+library(modelr)
+library(rpart)
+library(broom)
+library(randomForest)
+library(gbm)
+library(kableExtra)
+library(caret)
+library(pdp)
+library(ggplot2)
+library(xgboost)
+library(gplots)
+library(gridExtra)
+
+```
+
+```{r include=FALSE}
+dm_data <- read.csv('dm_data.csv')
+#drop NA
+mental_nona <- dm_data %>% drop_na( gender, retire, life_sf , health_sf , marrage_sf , children_sf , air_sf , residential_address , education , marital_status , self_health , sleeptime , intensivesport , moderatesport , friendscom , activity , smoke , health_problem , disbility , pensiontype , pension )
+```
+
+
+```{r include=FALSE}
+#generate mental score
+mental_nona = mental_nona%>%
+  mutate(mental = 28 - bothered_by_things - had_trouble_keeping_mind - depressed - fearful - sleep_restless - lonely - not_get_on + effort + hopeful + happy)
+#generate age at 2018
+mental_nona = mental_nona%>%
+  mutate(age = 2018 - birth)
+#adjust data
+## urban = 1, rural = 0
+mental_nona$residential_address <- ifelse(mental_nona$residential_address %in% c(1, 2, 4), 1, 0)
+# activity = 1
+mental_nona$activity[mental_nona$activity == 12] <- 1
+
+```
+#negative factors: 
+bothered_by_things
+had_trouble_keeping_mind
+depressed
+fearful
+sleep_restless
+lonely
+not_get_on
+
+#positive factors:
+effort
+hopeful
+happy
+
+
+```{r include=FALSE}
+#split the dataset
+mental_split <- initial_split(mental_nona, 0.8)
+mental_train <- training(mental_split)
+mental_test <- testing(mental_split)
+```
+
+```{r include=FALSE}
+#hukou_type, income, pensionamount have too many not avaliable items, so we don't consider them
+
+#linear model
+mental_linear <- lm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + moderatesport + activity + health_problem + disbility + pensiontype + pension + age, data = mental_train)
+
+modelr::rmse(mental_linear, mental_test)
+coef(mental_linear)
+
+summary(mental_linear)
+
+
+```
+
+
+```{r warning=FALSE, include=FALSE, results='hide'}
+
+#stepwise selection
+mental_stepwise <- step(mental_linear, scope=~(retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age)^2)
+
+modelr::rmse(mental_stepwise, mental_test)
+getCall(mental_stepwise)
+coef(mental_stepwise)
+```
+
+```{r include=FALSE}
+#single tree
+mental_singletree <- rpart(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = mental_train, control = rpart.control(cp = 0.002, minsplit=30))
+#cross-validated error plot
+plotcp(mental_singletree, main = "Cross-Validated Error Plot of Single Tree") 
+#pick the smallest tree in which CV error is within 1 std err of the minimum
+cp_1se = function(my_tree) {
+    out = as.data.frame(my_tree$cptable)
+    thresh = min(out$xerror + out$xstd)
+    cp_opt = max(out$CP[out$xerror <= thresh])
+    cp_opt
+} 
+cp_1se(mental_singletree)
+# this function actually prunes the tree at that level
+prune_1se = function(my_tree) {
+    out = as.data.frame(my_tree$cptable)
+    thresh = min(out$xerror + out$xstd)
+    cp_opt = max(out$CP[out$xerror <= thresh])
+    prune(my_tree, cp=cp_opt)
+}
+#prune the tree at 1 std err complexity level
+mental_singleprune <- prune_1se(mental_singletree)
+
+```
+
+```{r include=FALSE}
+#random forest
+mental_rf <- randomForest(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = mental_train, importance = TRUE, na.action=na.roughfix)
+# shows out-of-bag MSE as a function of the number of trees used
+plot(mental_rf, main = "Out-of-Bag MSE for Random Forest Model") 
+```
+
+```{r echo=FALSE}
+#boosted regression trees
+mental_gb<- gbm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = mental_train, distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4)
+# Look at error curve
+plot(mental_gb)
+yhat_gb = predict(mental_gb, newdata = mental_test)
+plot(yhat_gb, mental_gb$revenue)
+
+summary(mental_gb)
+
+p1 <- partial(mental_gb, pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p2 <- partial(mental_gb, pred.var = "age", plot = TRUE, n.trees = 10000)
+p3 <- partial(mental_gb, pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p4 <- partial(mental_gb, pred.var = "health_sf", plot = TRUE, n.trees = 10000)
+grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+```
+
+```{r echo=FALSE}
+mental_rmse <- c("Linear Regression" = modelr::rmse(mental_linear, mental_test),
+                "Stepwise" = modelr::rmse(mental_stepwise, mental_test),
+                "Single Tree" = modelr::rmse(mental_singletree, mental_test),
+                "Single Tree Pruned" = modelr::rmse(mental_singleprune, mental_test),
+                "Random Forest" = modelr::rmse(mental_rf, mental_test),
+                "Gradient Boosting" = modelr::rmse(mental_gb, mental_test))
+kable(mental_rmse, col.names = c("RMSE"), caption = "RMSE for all the Models", format_caption = c("italic", "underline")) %>%
+    kable_styling(bootstrap_options = "striped", full_width = F)
+```
+We can see that the RMSE of Gradient Boosting model is the smallest.
+
+
+```{r echo=FALSE}
+# split the dataset by gender and residential address
+grouped_data <- split(mental_nona, list(mental_nona$gender, mental_nona$residential_address))
+
+# save into 4 dataset
+male_rural <- grouped_data[[1]]
+female_rural <- grouped_data[[2]]
+male_urban <- grouped_data[[3]]
+female_urban <- grouped_data[[4]]
+
+# a list of 4 datasets
+data_list <- list(male_urban, male_rural, female_urban, female_rural)
+
+# gradient boosting
+for(i in 1:length(data_list)) {
+  model<- gbm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = data_list[[i]], distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4, keep.data=TRUE)
+  print(paste0("Model for dataset ", i, " is done."))
+}
+for(i in 1:length(data_list)) {
+  model[[i]]<- gbm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = data_list[[i]], distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4, keep.data=TRUE)
+  print(paste0("Model for dataset ", i, " is done."))
+}
+
+
+summary(model[[1]])
+summary(model[[2]])
+summary(model[[3]])
+summary(model[[4]])
+
+p5<-partial(model[[1]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p6<-partial(model[[2]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p7<-partial(model[[3]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p8<-partial(model[[4]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p9<-partial(model[[1]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p10<-partial(model[[2]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p11<-partial(model[[3]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p12<-partial(model[[4]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p13<-partial(model[[1]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p14<-partial(model[[2]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p15<-partial(model[[3]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p16<-partial(model[[4]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+grid.arrange(p5, p6, p7, p8, ncol = 2, nrow = 2)
+grid.arrange(p9, p10, p11, p12, ncol = 2, nrow = 2)
+grid.arrange(p13, p14, p15, p16, ncol = 2, nrow = 2)
+```
+
+
+
+
