@@ -1,0 +1,301 @@
+#A Prediction of Chinese Elderlies’ Mental Health Based on CHARLS  
+Jingru Li; Siyuan Liu; Suyu Liu    
+
+Abstract: 
+As the trend of aging surge how to overcome the psychological problems faced by the elderly becomes more and more of a challenge. Using a sample of approximately 20,000 Chinese seniors, this report attempts to predict the degree of psychological health of the elderly through numerous factors. In this report, we first build a linear model and use methods such as Random Forest, Tree, and Gradient Boosting to make predictions. Finally, it reveals that age, satisfaction with life, sleep time, and education can help us to predict the mental health of the elderly. And, by further classifying the samples, we also find that the mental health of elderlies of different genders and different living backgrounds are influenced by similar factor in different level.  
+
+1. Introduction  
+The aging population is increasing rapidly. According to UN, the proportion of older adults is estimated to be 22% of the world’s total population. By that time, one quarter of the population in Europe and North America will be 65 years old or older. Physical and mental challenges that they are facing should be recognized. Shocking numbers of adults aged 60 and over suffer from a mental disorder --- approximately 15%.   
+There is no doubt that psychological problems in older adults will affect their physical health and thus strain the clinical and social infrastructure that supports them. The health effects of psychological problems are not limited to older adults but can also threaten the health of family members and caregivers who spend significant time and energy caring for these older adults. At the same time, psychological problems in the aging population can have additional hidden costs to the economy and society. For example, caregivers are overwhelmed at both work and home, community activities lose the participation of older adults, and the government tries to control the budget for the care of the elderly. These issues create a public health care dilemma that is likely to deteriorate as the surging aging population.  
+It's these issues that reflect the importance of focusing on the mental health of the elderly. Understanding the factors that cause mental health problems in older adults is critical to developing effective interventions and policies. To focus on them is to focus on our own future. That’s also where the motivation for this report comes from.     
+To better capture reality and compare samples, we focused on China, where the rate of aging has soared in recent years. The purpose of this report is to use data from the CHARLS (China Health and Retirement Longitudinal Study), a nationally representative longitudinal survey of Chinese adults aged 45 and older, to predict the mental health status of older adults in China. The survey collects data on a range of health, social, economic, and demographic factors. We will examine the effects of various factors, including age, gender, education, income, social support, and health status, on mental health outcomes among the elderly. By identifying factors that affect seniors' mental health, we can develop targeted interventions to improve their mental health and well-being and contribute to healthy aging.
+
+2. Method   
+2.1 Dataset 
+The data used in this analysis is cross-sectional data from the China Health and Retirement Longitudinal Study (CHARLS) the national survey of wave four in 2018. CHARLS is a longitudinal survey that aims to be representative of the residents in China aged 45 and older, with no upper age limit. CHARLS is harmonized with leading international research studies in the Health and Retirement Study (HRS) model, which collects information about income, work, assets, pension plans, health insurance, etc. This contains data on 18117 elders. 
+For our variable to predict, in CHARLS they asked 10 questions about mental health, so we use these 10 variables to estimate mental health. The range of the answer is from “1 rarely or none”, “2 some or a little”, “3 occasionally or moderate amount of time”, and “4 most of the time”. To measure mental health, we used the function below: 
+Mental_health = 28 - bothered_by_things - had_trouble_keeping_mind - depressed - fearful - sleep_restless - lonely - not_get_on + effort + hopeful + happy)
+in this equation, we set 28 as the benchmark for judging, a high score in mental health means elders have better mental health.  
+We choose variables that may have an impact on the mental health of older people from the database by hand. Here is a list of the variables:
+•	Retire: if people have retired 
+•	Life_sf: life satisfaction 
+•	Health_sf: health satisfaction 
+•	Marriage_sf: marriage satisfaction 
+•	Children_sf: children’s satisfaction 
+•	Air_sf: air quality satisfaction 
+•	Residential_address: respondents live in urban or rural 
+•	Education: The education level of the respondents 
+•	Marital_satus: Living together or living alone 
+•	Self_health: self-report health 
+•	Sleeptime: the length of sleep time each day 
+•	Intensivesport: if respondents do intensive sport more than 10 minutes each day 
+•	Moderatesport: if respondents do moderatesport sport more than 10 minutes each day 
+•	Friendscom: Whether to interact with friends 
+•	Activity: whether to attend activity monthly 
+•	Smoke: still smoke or not  
+•	Health_problem: whether suffering from any of the twelve chronic diseases 
+•	Disability Whether disabled or not 
+•	Pensiontype: the type of pension 
+•	Pension: the amount of pension 
+•	Age: respondents’’ age in 2018 
+ 
+2.2 Method  
+Our goal is to build the best predictive model of older people's mental health, to verify whether each variable could have a significant effect on mental health, we first ran OLS regressions on mental health, the result will show the p-value of each variable, then we will select significant variables from which to build our predictive models.   
+We choose six methods of building predictive models, which are linear model, stepwise selection, single tree model, single tree pruned model, random forest, and Gradient boosting.  
+(1) Linear model: Linear modeling is the most widely used tool in the world for fitting a predictive model of the form:  
+Y = f(x) + e 
+They are used throughout the worlds of science and industry, and they can directly show the relationship between variables and predicted values.  
+(2) Stepwise selection: Stepwise selection model will do OLS regression on both candidate variables and interactions (the scope). Start with any working model containing some subset of these variables. Ideally, this should be a reasonable guess at a good model.
+(3) Single tree model: Regression trees are for numerical (as opposed to categorical) outcomes. We can estimate E(y|x) by this model:  
+y = mental health of elder; x = significant effect variables.   
+(4) Single tree pruned model: To improve the single tree model, single tree pruned model examines every pair of "sibling" leaf nodes and checks the increase in loss from "pruning" that split; Prune the "least useful" split, for example, the prune that yields the smallest increase in loss (decrease in fit). It might be able to provide us with better predictions than the single tree model.  
+(5) Random forest model: “random forest model” starts from bagging, it combines the output of multiple decision trees to reach a single result. Its ease of use and flexibility have fueled its adoption, as it handles regression problems. We are able to find out the importance of each variable and its partial effect on the outcome.  
+(6) Gradient boosting is a machine learning technique used in regression, among others. It gives a prediction model in the form of an ensemble of weak prediction models, which are typically decision trees.  
+Our evaluation criteria for these six models are Root-mean-square deviation. It measures the difference between the predicted values and the actual values in a dataset, lower RMSE indicates a better prediction model.  
+After choosing the best prediction model for mental health, we will do robustness tests on the model, by dividing the model into four groups with gender and region which are, urban male, urban female, rural male, and rural female. Then using these groups to explore predictive models for different types of older people's mental health by the prediction model we have chosen.  
+
+
+3.Result
+```{r include=FALSE}
+library(dplyr)
+library(tidyr)
+library(rsample)
+library(modelr)
+library(rpart)
+library(broom)
+library(randomForest)
+library(gbm)
+library(kableExtra)
+library(caret)
+library(pdp)
+library(ggplot2)
+library(xgboost)
+library(gplots)
+library(gridExtra)
+
+```
+
+```{r include=FALSE}
+dm_data <- read.csv('dm_data.csv')
+#drop NA
+mental_nona <- dm_data %>% drop_na( gender, retire, life_sf , health_sf , marrage_sf , children_sf , air_sf , residential_address , education , marital_status , self_health , sleeptime , intensivesport , moderatesport , friendscom , activity , smoke , health_problem , disbility , pensiontype , pension )
+```
+
+
+```{r include=FALSE}
+#generate mental score
+#negative factors: bothered_by_things,had_trouble_keeping_mind,depressed,fearful,sleep_restless,lonely,not_get_on
+#positive factors:effort,hopeful,happy
+mental_nona = mental_nona%>%
+  mutate(mental = 28 - bothered_by_things - had_trouble_keeping_mind - depressed - fearful - sleep_restless - lonely - not_get_on + effort + hopeful + happy)
+#generate age at 2018
+mental_nona = mental_nona%>%
+  mutate(age = 2018 - birth)
+#adjust data
+## urban = 1, rural = 0
+mental_nona$residential_address <- ifelse(mental_nona$residential_address %in% c(1, 2, 4), 1, 0)
+# activity = 1
+mental_nona$activity[mental_nona$activity == 12] <- 1
+
+
+```
+
+
+
+```{r include=FALSE}
+#split the dataset
+mental_split <- initial_split(mental_nona, 0.8)
+mental_train <- training(mental_split)
+mental_test <- testing(mental_split)
+```
+
+```{r include=FALSE}
+#hukou_type, income, pensionamount have too many not avaliable items, so we don't consider them
+
+#linear model
+mental_linear <- lm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + moderatesport + activity + health_problem + disbility + pensiontype + pension + age, data = mental_train)
+
+modelr::rmse(mental_linear, mental_test)
+coef(mental_linear)
+
+summary(mental_linear)
+
+
+```
+
+
+```{r warning=FALSE, include=FALSE, results='hide'}
+
+#stepwise selection
+mental_stepwise <- step(mental_linear, scope=~(retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age)^2)
+
+modelr::rmse(mental_stepwise, mental_test)
+getCall(mental_stepwise)
+coef(mental_stepwise)
+```
+
+```{r include=FALSE}
+#single tree
+mental_singletree <- rpart(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = mental_train, control = rpart.control(cp = 0.002, minsplit=30))
+#cross-validated error plot
+plotcp(mental_singletree, main = "Cross-Validated Error Plot of Single Tree") 
+#pick the smallest tree in which CV error is within 1 std err of the minimum
+cp_1se = function(my_tree) {
+    out = as.data.frame(my_tree$cptable)
+    thresh = min(out$xerror + out$xstd)
+    cp_opt = max(out$CP[out$xerror <= thresh])
+    cp_opt
+} 
+cp_1se(mental_singletree)
+# this function actually prunes the tree at that level
+prune_1se = function(my_tree) {
+    out = as.data.frame(my_tree$cptable)
+    thresh = min(out$xerror + out$xstd)
+    cp_opt = max(out$CP[out$xerror <= thresh])
+    prune(my_tree, cp=cp_opt)
+}
+#prune the tree at 1 std err complexity level
+mental_singleprune <- prune_1se(mental_singletree)
+
+```
+
+```{r include=FALSE}
+#random forest
+mental_rf <- randomForest(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = mental_train, importance = TRUE, na.action=na.roughfix)
+# shows out-of-bag MSE as a function of the number of trees used
+plot(mental_rf, main = "Out-of-Bag MSE for Random Forest Model") 
+```
+
+```{r include=FALSE}
+#boosted regression trees
+mental_gb<- gbm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + residential_address + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = mental_train, distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4)
+# Look at error curve
+plot(mental_gb)
+yhat_gb = predict(mental_gb, newdata = mental_test)
+plot(yhat_gb, mental_gb$revenue)
+
+
+```
+We used a variety of models to predict mental health outcomes in older adults. And here is the RMSE for these models
+```{r echo=FALSE}
+mental_rmse <- c("Linear Regression" = modelr::rmse(mental_linear, mental_test),
+                "Stepwise" = modelr::rmse(mental_stepwise, mental_test),
+                "Single Tree" = modelr::rmse(mental_singletree, mental_test),
+                "Single Tree Pruned" = modelr::rmse(mental_singleprune, mental_test),
+                "Random Forest" = modelr::rmse(mental_rf, mental_test),
+                "Gradient Boosting" = modelr::rmse(mental_gb, mental_test))
+kable(mental_rmse, col.names = c("RMSE"), caption = "RMSE for all the Models", format_caption = c("italic", "underline")) %>%
+    kable_styling(bootstrap_options = "striped", full_width = F)
+```
+These models are generally all good at predicting the mental health outcomes. And we can see that Gradient Boosting has the smallest RMSE. So we choose Gradient Boosting model to have a further look at our case.
+
+In Gradient Boosting models, relative influence is a measure of variable importance that reflects the contribution of each input variable to the model's overall predictive performance (Appendix. Table 1)
+
+Life satisfaction, age, sleep time and self_health are the Top 4 important variables. So we have a look at their partial dependence plot:
+```{r}
+summary(mental_gb)
+
+p1 <- partial(mental_gb, pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p2 <- partial(mental_gb, pred.var = "age", plot = TRUE, n.trees = 10000)
+p3 <- partial(mental_gb, pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p4 <- partial(mental_gb, pred.var = "health_sf", plot = TRUE, n.trees = 10000)
+grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+```
+Mental health increase as life satisfaction and health satisfaction increases (5 is the worst rating and 1 is the best rating)
+When the sleep time is between 6-10h, their mental health is better.
+For age, there is no obvious and significant trend. 
+
+
+Next, we classified the sample by residential address (urban or rural) and gender, and divided them into four categories: urban male, urban female, rural male, rural female.
+Run the gradient boosting model on each subset, and get the relative influence table (Appendix. Table 2-5)
+
+Age, sleeptime, life_sf is the top 3 important for these four subset, similar to the overall sample.
+Comparing the education for female, education is more important for urban female than rural female.
+Smoke is important for male while not for female.
+Then we have a look at the Top3 partial dependence plots:
+```{r echo=FALSE}
+# split the dataset by gender and residential address
+grouped_data <- split(mental_nona, list(mental_nona$gender, mental_nona$residential_address))
+
+# save into 4 dataset
+male_rural <- grouped_data[[1]]
+female_rural <- grouped_data[[2]]
+male_urban <- grouped_data[[3]]
+female_urban <- grouped_data[[4]]
+
+# a list of 4 datasets
+data_list <- list(male_urban, male_rural, female_urban, female_rural)
+
+# gradient boosting
+for(i in 1:length(data_list)) {
+  model<- gbm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = data_list[[i]], distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4, keep.data=TRUE)
+  print(paste0("Model for dataset ", i, " is done."))
+}
+for(i in 1:length(data_list)) {
+  model[[i]]<- gbm(mental ~ retire + life_sf + health_sf + marrage_sf + children_sf + air_sf + education + marital_status + self_health + sleeptime + intensivesport + moderatesport + friendscom + activity + smoke + health_problem + disbility + pensiontype + pension + age, data = data_list[[i]], distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4, keep.data=TRUE)
+  print(paste0("Model for dataset ", i, " is done."))
+}
+
+
+summary(model[[1]])
+summary(model[[2]])
+summary(model[[3]])
+summary(model[[4]])
+
+p5<-partial(model[[1]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p6<-partial(model[[2]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p7<-partial(model[[3]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p8<-partial(model[[4]], pred.var = "age", plot = TRUE, n.trees = 10000)
+p9<-partial(model[[1]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p10<-partial(model[[2]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p11<-partial(model[[3]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p12<-partial(model[[4]], pred.var = "life_sf", plot = TRUE, n.trees = 10000)
+p13<-partial(model[[1]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p14<-partial(model[[2]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p15<-partial(model[[3]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+p16<-partial(model[[4]], pred.var = "sleeptime", plot = TRUE, n.trees = 10000)
+grid.arrange(p5, p6, p7, p8, ncol = 2, nrow = 2)
+grid.arrange(p9, p10, p11, p12, ncol = 2, nrow = 2)
+grid.arrange(p13, p14, p15, p16, ncol = 2, nrow = 2)
+```
+Age: 
+No obvious and significant trend
+Average mental health between 40-80 (below40 and above 80 have too few samples):
+Average mental health of rural female is the worst.
+Sleep time:
+When sleep for 6-10h daily, the mental health of the elderly is better.
+Life satisfaction:
+At 1 and 2, there is no significant difference in their mental health. As life satisfaction goes down from 3 (1 is the best and 5 is the worst), their mental health goes down.
+
+4.Conlusion  
+Based on the above prediction model, we find that:  
+(1) Satisfaction with life, marriage, own health, and children all influence the psychological status of the elderly. When they are satisfied with their current life, they are also psychologically healthier. Although age significantly affects the prediction of mental health, we cannot directly determine the level of mental health of older adults by the magnitude of their age. Sleep duration within a certain time range affects mental health, but more than 6 hours of sleep is not helpful in determining psychological condition.  
+(2) By further classifying urban and rural, male and female, we observe that there are different performances of the influencing factors for different groups. For urban senior citizens, physical activity plays an important role in maintaining mental health, but rural aged people do not rely on sports to keep their emotions.  This is also related to the fact that there is a gap between urban and rural infrastructure development in China at present. Urban communities generally build activity centers for social interaction and engagement for the elderly, but rural areas lack such infrastructure.   
+Education has the most significant impact on the mental health of urban women. This is also related to the limited social roles and expectations of women compared to men. In particular, older urban women experience both traditional gender roles, such as caregiving and family responsibilities, but also access to educational opportunities and skills. Thus, education has a particularly strong impact on them.  
+
+5.Appendix
+Table 1
+```{r}
+summary(mental_gb)
+```
+
+Table 2
+```{r}
+summary(model[[1]])
+```
+
+Table 3
+```{r}
+summary(model[[2]])
+```
+
+Table 4
+```{r}
+summary(model[[3]])
+```
+
+Table 5
+```{r}
+summary(model[[4]])
+```
+
